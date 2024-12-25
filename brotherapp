@@ -1,0 +1,157 @@
+import pygame
+import random
+import sys
+import requests
+from io import BytesIO
+
+# Pygame başlatma
+pygame.init()
+
+# Ekran boyutları
+WIDTH = 400
+HEIGHT = 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Flappy STARKNET BROTHER")
+
+# Renkler
+GREEN = (34, 139, 34)
+WHITE = (255, 255, 255)
+
+
+def load_image_from_url(url):
+    """URL'den bir resmi indir ve Pygame yüzeyi olarak döndür."""
+    response = requests.get(url)
+    if response.status_code == 200:
+        image_data = BytesIO(response.content)
+        return pygame.image.load(image_data)
+    else:
+        raise Exception(f"Resim indirilemedi: {url}")
+
+
+# Arka plan resmi
+BACKGROUND_URL = "https://i.hizliresim.com/12mf0d7.png"
+BACKGROUND = load_image_from_url(BACKGROUND_URL)
+BACKGROUND = pygame.transform.scale(BACKGROUND, (WIDTH, HEIGHT))
+
+
+class Bird:
+    def __init__(self):
+        self.x = WIDTH // 3
+        self.y = HEIGHT // 2
+        self.velocity = 0
+        self.gravity = 0.5
+        self.jump_speed = -8
+
+        # Kuş resmi
+        BIRD_URL = "https://i.hizliresim.com/dn4b17z.png"
+        self.image = load_image_from_url(BIRD_URL)
+        self.size = 40  # Kuşun boyutu
+        self.image = pygame.transform.scale(self.image, (self.size, self.size))
+        self.rect = self.image.get_rect()
+
+    def move(self):
+        self.velocity += self.gravity
+        self.y += self.velocity
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def jump(self):
+        self.velocity = self.jump_speed
+
+    def draw(self):
+        screen.blit(self.image, (self.x, self.y))
+
+
+class Pipe:
+    def __init__(self):
+        self.gap = 200
+        self.x = WIDTH
+        self.top_height = random.randint(50, HEIGHT - self.gap - 50)
+        self.width = 50
+        self.speed = 3
+
+    def move(self):
+        self.x -= self.speed
+
+    def draw(self):
+        pygame.draw.rect(screen, GREEN, (self.x, 0, self.width, self.top_height))
+        pygame.draw.rect(screen, GREEN, (self.x,
+                                         self.top_height + self.gap,
+                                         self.width,
+                                         HEIGHT - (self.top_height + self.gap)))
+
+    def check_collision(self, bird):
+        if (bird.rect.right > self.x and bird.rect.left < self.x + self.width and
+                bird.rect.top < self.top_height):
+            return True
+        if (bird.rect.right > self.x and bird.rect.left < self.x + self.width and
+                bird.rect.bottom > self.top_height + self.gap):
+            return True
+        return False
+
+
+def start_game():
+    bird = Bird()
+    pipes = [Pipe()]
+    score = 0
+    font = pygame.font.Font(None, 36)
+    clock = pygame.time.Clock()
+
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    bird.jump()
+
+        bird.move()
+
+        if pipes[-1].x < WIDTH - 200:
+            pipes.append(Pipe())
+
+        for pipe in pipes[:]:
+            pipe.move()
+            if pipe.x + pipe.width < 0:
+                pipes.remove(pipe)
+                score += 1
+            if pipe.check_collision(bird):
+                return score
+
+        if bird.y < 0 or bird.y + bird.size > HEIGHT:
+            return score
+
+        screen.blit(BACKGROUND, (0, 0))
+
+        for pipe in pipes:
+            pipe.draw()
+        bird.draw()
+
+        score_text = font.render(f'Score: {score}', True, WHITE)
+        screen.blit(score_text, (10, 10))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+
+while True:
+    final_score = start_game()
+    print(f"Game Over! Score: {final_score}")
+
+    screen.blit(BACKGROUND, (0, 0))
+    font = pygame.font.Font(None, 36)
+    text = font.render(f'Score: {final_score} - Press SPACE to restart', True, WHITE)
+    text_rect = text.get_rect(center=(WIDTH / 2, HEIGHT / 2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    waiting = False
